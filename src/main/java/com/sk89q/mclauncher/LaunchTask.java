@@ -82,7 +82,7 @@ public class LaunchTask extends Task {
     private boolean notInstalled = false;
     private volatile Updater updater;
     private boolean demo = false;
-    private boolean allowOfflineName = false;
+    private boolean allowOfflineName = true;
 
     private boolean showConsole = false;
     private String autoConnect;
