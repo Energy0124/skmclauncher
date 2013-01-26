@@ -832,19 +832,20 @@ public class LauncherFrame extends JFrame {
             return;
 
         Object selectedName = userText.getSelectedItem();
-
+         /*
         if (selectedName == null) {
             JOptionPane.showMessageDialog(this, "A username must be entered.",
                     "No username", JOptionPane.ERROR_MESSAGE);
             return;
         }
-
+                   */
+        /*
         if (!playOfflineCheck.isSelected() && passText.getText().trim().length() == 0) {
             JOptionPane.showMessageDialog(this, "A password must be entered.",
                     "No password", JOptionPane.ERROR_MESSAGE);
             return;
         }
-
+           */
         String username = selectedName.toString();
         String password = passText.getText();
         boolean remember = rememberPass.isSelected();
