@@ -1,10 +1,10 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.sk89q</groupId>
-  <artifactId>mclauncher</artifactId>
+  <artifactId>mclauncherSP</artifactId>
   <version>3.1.7-SNAPSHOT</version>
-  <name>SK's Minecraft Launcher</name>
-  <description>SK's launcher for Minecraft.</description>
+  <name>SK's Minecraft Launcher SP</name>
+  <description>SK's launcher SP for Minecraft.</description>
   <url>http://www.sk89q.com</url>
   <scm>
     <connection>scm:git:git://github.com/sk89q/skmclauncher.git</connection>
@@ -37,7 +37,7 @@
     <testSourceDirectory>${basedir}/src/test/java</testSourceDirectory>
     <outputDirectory>${basedir}/target/classes</outputDirectory>
     <testOutputDirectory>${basedir}/target/test-classes</testOutputDirectory>
-    <finalName>SKMCLauncher</finalName>
+    <finalName>SKMCLauncherSP</finalName>
     <resources>
       <resource>
         <targetPath>resources</targetPath>
