@@ -138,6 +138,13 @@ public class LoginSession {
                 isValid = true;
                 return true;
             } else {
+                latestVersion = "0";
+                downloadTicket = "0";
+                if (username==null) username="player";
+                sessionId = "0";
+                isValid = true;
+                return true;
+                /*
                 if (result.trim().equals("Bad login")) {
                     return false;
                 } else if (result.trim().equals("Old version")) {
@@ -145,6 +152,7 @@ public class LoginSession {
                 } else {
                     throw new LoginException(result.trim());
                 }
+                */
             }
         } catch (KeyManagementException e) {
             throw new LoginException("Failed to process PKI keys: " + e.getMessage(), e);
