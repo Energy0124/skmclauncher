@@ -359,7 +359,7 @@ public class LauncherFrame extends JFrame {
         setLayout(new BorderLayout(0, 0));
         boolean hidenews = options.getSettings().getBool(Def.LAUNCHER_HIDE_NEWS, false);
         allowOfflineName = options.getSettings().getBool(
-                Def.LAUNCHER_ALLOW_OFFLINE_NAME, false);
+                Def.LAUNCHER_ALLOW_OFFLINE_NAME, true);
         
         if (!hidenews) {
             if (options.getSettings().getBool(Def.LAUNCHER_NO_NEWS, false)) {
