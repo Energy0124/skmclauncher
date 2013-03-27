@@ -25,6 +25,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
@@ -306,6 +307,7 @@ public class Configuration {
         if (files == null) {
             return jars;
         }
+        Arrays.sort(files);
         for (File f : files) {
             String name = f.getName();
             
