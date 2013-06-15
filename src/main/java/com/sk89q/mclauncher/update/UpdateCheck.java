@@ -18,105 +18,28 @@
 
 package com.sk89q.mclauncher.update;
 
-import java.io.BufferedInputStream;
-import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
-
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.xpath.XPath;
-import javax.xml.xpath.XPathExpressionException;
-import javax.xml.xpath.XPathFactory;
-
-import org.w3c.dom.Document;
-import org.xml.sax.SAXException;
-
-import static com.sk89q.mclauncher.util.XMLUtil.*;
-
 /**
- * Manages a custom update check.
- * 
- * @author sk89q
+ * The result of an update check.
  */
-public class UpdateCheck {
-
-    private URL updateUrl;
-    private URL packageUrl;
-    private String latestVersion;
+public interface UpdateCheck {
     
     /**
-     * Construct the check.
+     * Return whether an update is required.
      * 
-     * @param updateUrl URL to check for updates
+     * <p>This method may block to perform the check.</p>
+     * 
+     * @return true if an update is required
+     * @throws InterruptedException thrown on interruption
+     * @throws UpdateException thrown if an error occurs while checking
      */
-    public UpdateCheck(URL updateUrl) {
-        this.updateUrl = updateUrl;
-    }
+    boolean needsUpdate() throws InterruptedException, UpdateException;
     
     /**
-     * Attempt to check the update server.
+     * Create an updater.
      * 
-     * @throws IOException on I/O error
+     * @return the updater
+     * @throws UpdateException thrown if an updater can't be made
      */
-    public void checkUpdateServer() throws IOException {
-        HttpURLConnection conn = null;
-                
-        try {
-            conn = (HttpURLConnection) updateUrl.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setUseCaches(false);
-            conn.setDoInput(true);
-            conn.setDoOutput(false);
-            conn.setReadTimeout(5000);
+    Updater createUpdater() throws UpdateException;
 
-            conn.connect();
-            
-            if (conn.getResponseCode() != 200) {
-                throw new IOException("Did not get expected 200 code");
-            }
-
-            Document doc = parseXml(new BufferedInputStream(conn.getInputStream()));
-            XPath xpath = XPathFactory.newInstance().newXPath();
-
-            latestVersion = getString(doc, xpath.compile("/update/latest"));
-            packageUrl = new URL(getString(doc, xpath.compile("/update/packageurl")));
-        } catch (XPathExpressionException e) {
-            throw new IOException(e);
-        } catch (ParserConfigurationException e) {
-            throw new IOException(e);
-        } catch (SAXException e) {
-            throw new IOException(e);
-        } finally {
-            if (conn != null) conn.disconnect();
-            conn = null;
-        }
-    }
-
-    /**
-     * Get the update check URL.
-     * 
-     * @return url
-     */
-    public URL getUpdateUrl() {
-        return updateUrl;
-    }
-
-    /**
-     * Get the package definition URL.
-     * 
-     * @return url
-     */
-    public URL getPackageDefUrl() {
-        return packageUrl;
-    }
-
-    /**
-     * Get the latest version.
-     * 
-     * @return version
-     */
-    public String getLatestVersion() {
-        return latestVersion;
-    }
-    
 }

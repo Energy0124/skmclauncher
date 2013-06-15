@@ -39,6 +39,12 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 
+import com.sk89q.mclauncher.event.ProgressListener;
+import com.sk89q.mclauncher.event.StatusChangeEvent;
+import com.sk89q.mclauncher.event.TitleChangeEvent;
+import com.sk89q.mclauncher.event.ValueChangeEvent;
+import com.sk89q.mclauncher.util.Task;
+
 public class ProgressDialog extends JDialog implements ProgressListener {
     
     private static final long serialVersionUID = 7258236630228982935L;
@@ -48,7 +54,7 @@ public class ProgressDialog extends JDialog implements ProgressListener {
     private JButton cancelButton;
     
     public ProgressDialog(Window owner, final Task task, String title) {
-        super(owner, title, Dialog.ModalityType.APPLICATION_MODAL);
+        super(owner, title, Dialog.ModalityType.DOCUMENT_MODAL);
 
         this.task = task;
 
@@ -63,17 +69,13 @@ public class ProgressDialog extends JDialog implements ProgressListener {
         buildUI();
         pack();
         setResizable(false);
-        setSize(350, getHeight());
+        setSize(500, getHeight());
         setLocationRelativeTo(owner);
     }
     
     private void tryCancelling() {
-        Boolean res = task.cancel();
-        if (res == null) {
-            cancelButton.setEnabled(true);
-            progressBar.setIndeterminate(true);
-            statusLabel.setText("Cancelling...");
-        } else if (res) {
+        boolean res = task.cancel();
+        if (res) {
             dispose();
         }
     }

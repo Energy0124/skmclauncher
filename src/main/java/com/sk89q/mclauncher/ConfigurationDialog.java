@@ -24,6 +24,7 @@ import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
@@ -39,19 +40,20 @@ import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JDialog;
-import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
-import javax.swing.filechooser.FileFilter;
 
 import com.sk89q.mclauncher.config.Configuration;
-import com.sk89q.mclauncher.config.ConfigurationsManager;
-import com.sk89q.mclauncher.util.SettingsList;
-import com.sk89q.mclauncher.util.UIUtil;
+import com.sk89q.mclauncher.config.ConfigurationList;
+import com.sk89q.mclauncher.config.LauncherOptions;
+import com.sk89q.mclauncher.config.SettingsList;
+import com.sk89q.mclauncher.util.ActionListeners;
+import com.sk89q.mclauncher.util.DirectoryField;
+import com.sk89q.mclauncher.util.SwingHelper;
 
 /**
  * Dialog for adding or modifying a {@link Configuration}.
@@ -61,60 +63,60 @@ import com.sk89q.mclauncher.util.UIUtil;
 public class ConfigurationDialog extends JDialog {
 
     private static final long serialVersionUID = -7347791965966294361L;
-    private OptionsDialog optionsDialog;
-    private ConfigurationsManager configsManager;
-    private JButton browseBtn;
+    private final Window dialog;
+    private final LauncherOptions options;
+    private final ConfigurationList configsManager;
+    private final SettingsList settings;
+    private Configuration configuration;
     private JTextField nameText;
-    private JTextField pathText;
+    private DirectoryField pathField;
     private JCheckBox customPathCheck;
     private JTextField urlText;
     private JCheckBox customUpdateCheck;
-    private Configuration configuration;
-    private SettingsList settings;
     private List<OptionsPanel> optionsPanels = new ArrayList<OptionsPanel>();
     
     /**
      * Start editing a given configuration.
      * 
      * @param owner owning dialog
-     * @param configsManager configurations manager
      * @param configuration configuration to edit
      */
-    public ConfigurationDialog(OptionsDialog owner, ConfigurationsManager configsManager,
-            Configuration configuration) {
-        super(owner, "Edit Configuration", true);
+    public ConfigurationDialog(Window owner, Configuration configuration) {
+        super(owner, "Edit Configuration", ModalityType.APPLICATION_MODAL);
+        this.dialog = owner;
+        this.options = Launcher.getInstance().getOptions();
+        this.configsManager = options.getConfigurations();
         this.configuration = configuration;
         this.settings = configuration.getSettings();
-        setup(owner, configsManager);
+        setup();
     }
 
     /**
      * Start a new configuration.
      * 
      * @param owner owning dialog
-     * @param configsManager configurations manager
      */
-    public ConfigurationDialog(OptionsDialog owner, ConfigurationsManager configsManager) {
-        super(owner, "New Configuration", true);
+    public ConfigurationDialog(Window owner) {
+        super(owner, "New Configuration", ModalityType.APPLICATION_MODAL);
+        this.dialog = owner;
+        this.options = Launcher.getInstance().getOptions();
+        this.configsManager = options.getConfigurations();
+        this.configuration = null;
         this.settings = new SettingsList();
-        setup(owner, configsManager);
+        setup();
     }
     
     /**
      * Setup.
      * 
-     * @param owner owning dialog
      * @param configsManager configurations manager
      */
-    private void setup(OptionsDialog owner, ConfigurationsManager configsManager) {
-        this.optionsDialog = owner;
-        this.configsManager = configsManager;
-        
+    private void setup() {
         setResizable(false);
         buildUI();
         pack();
         setSize(400, 500);
-        setLocationRelativeTo(owner);
+        setLocationRelativeTo(dialog);
 
         for (OptionsPanel panel : optionsPanels) {
             panel.copySettingsToFields();
@@ -124,13 +126,12 @@ public class ConfigurationDialog extends JDialog {
             nameText.setText(configuration.getName());
             if (configuration.isBuiltIn()) {
                 customPathCheck.setSelected(true);
-                pathText.setText(configuration.getBaseDir().getPath());
+                pathField.setPath(configuration.getBaseDir().getPath());
             } else {
                 boolean usingDefault = configuration.isUsingDefaultPath();
                 customPathCheck.setSelected(!usingDefault);
                 if (!usingDefault) {
-                    File f = configuration.getBaseDir();
-                    pathText.setText(f != null ? f.getPath() : "");
+                    pathField.setPath(configuration.getDirForOptions());
                 }
             }
             URL updateUrl = configuration.getUpdateUrl();
@@ -141,10 +142,9 @@ public class ConfigurationDialog extends JDialog {
             if (configuration.isBuiltIn()) {
                 nameText.setEnabled(false);
                 customPathCheck.setEnabled(false);
-                pathText.setEnabled(false);
+                pathField.setEnabled(false);
                 customUpdateCheck.setEnabled(false);
                 urlText.setEnabled(false);
-                browseBtn.setEnabled(false);
             }
         }
     }
@@ -194,12 +194,7 @@ public class ConfigurationDialog extends JDialog {
             }
         });
         
-        cancelBtn.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                self.dispose();
-            }
-        });
+        cancelBtn.addActionListener(ActionListeners.dipose(this));
         
         add(container, BorderLayout.CENTER);
     }
@@ -245,19 +240,10 @@ public class ConfigurationDialog extends JDialog {
         customPathCheck.setBorder(null);
         panel.add(customPathCheck, fieldConstraints);
         panel.add(Box.createGlue(), labelConstraints);
-        JPanel pathPanel = new JPanel();
-        pathPanel.setLayout(new BoxLayout(pathPanel, BoxLayout.X_AXIS));
-        pathText = new JTextField(30);
-        pathText.setMaximumSize(pathText.getPreferredSize());
-        nameLabel.setLabelFor(pathText);
-        browseBtn = new JButton("Browse...");
-        browseBtn.setPreferredSize(new Dimension(
-                browseBtn.getPreferredSize().width,
-                pathText.getPreferredSize().height));
-        pathPanel.add(pathText);
-        pathPanel.add(Box.createHorizontalStrut(3));
-        pathPanel.add(browseBtn);
-        panel.add(pathPanel, fieldConstraints);
+        pathField = new DirectoryField();
+        pathField.getTextField().setMaximumSize(pathField.getTextField().getPreferredSize());
+        nameLabel.setLabelFor(pathField.getTextField());
+        panel.add(pathField, fieldConstraints);
 
         panel.add(Box.createVerticalStrut(10), fullFieldConstraints);
 
@@ -270,21 +256,12 @@ public class ConfigurationDialog extends JDialog {
         urlText = new JTextField("http://");
         urlLabel.setLabelFor(urlText);
         panel.add(urlText, fieldConstraints);
-        
-        browseBtn.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                openPathBrowser();
-            }
-        });
 
-        pathText.setEnabled(false);
-        browseBtn.setEnabled(false);
+        pathField.setEnabled(false);
         customPathCheck.addChangeListener(new ChangeListener() {
             @Override
             public void stateChanged(ChangeEvent e) {
-                pathText.setEnabled(((JCheckBox) e.getSource()).isSelected());
-                browseBtn.setEnabled(((JCheckBox) e.getSource()).isSelected());
+                pathField.setEnabled(((JCheckBox) e.getSource()).isSelected());
             }
         });
         
@@ -300,7 +277,7 @@ public class ConfigurationDialog extends JDialog {
         container.setLayout(new BoxLayout(container, BoxLayout.Y_AXIS));
         container.add(panel);
         container.add(new Box.Filler(new Dimension(0, 0), new Dimension(0, 10000), new Dimension(0, 10000)));
-        UIUtil.removeOpaqueness(container);
+        SwingHelper.removeOpaqueness(container);
         return container;
     }
     
@@ -313,26 +290,23 @@ public class ConfigurationDialog extends JDialog {
         boolean builtIn = configuration != null && configuration.isBuiltIn();
 
         String name = nameText.getText().trim();
-        String pathStr = customPathCheck.isSelected() ? pathText.getText()
-                .trim() : null;
-        String updateURLStr = customUpdateCheck.isSelected() ? urlText
-                .getText() : null;
+        String pathStr = customPathCheck.isSelected() ? pathField.getPath().trim() : null;
+        String updateURLStr = customUpdateCheck.isSelected() ? urlText.getText() : null;
         URL updateUrl = null;
-        File f = null;
         
         if (!builtIn) {
             if (name.length() == 0) {
-                UIUtil.showError(this, "No name", "A name must be entered.");
+                SwingHelper.showError(this, "No name", "A name must be entered.");
                 return false;
             }
             
             if (pathStr != null && pathStr.length() == 0) {
-                UIUtil.showError(this, "No path", "A path must be entered.");
+                SwingHelper.showError(this, "No path", "A path must be entered.");
                 return false;
             }
             
             if (updateURLStr != null && updateURLStr.length() == 0) {
-                UIUtil.showError(this, "No URL", "An update URL must be entered.");
+                SwingHelper.showError(this, "No URL", "An update URL must be entered.");
                 return false;
             }
             
@@ -340,15 +314,16 @@ public class ConfigurationDialog extends JDialog {
                 try {
                     updateUrl = new URL(updateURLStr);
                 } catch (MalformedURLException e) {
-                    UIUtil.showError(this, "Invalid URL", "The update URL that you entered is invalid.");
+                    SwingHelper.showError(this, "Invalid URL", "The update URL that you entered is invalid.");
                     return false;
                 }
             }
 
             if (pathStr != null) {
-                f = new File(pathStr);
+                File f = Launcher.replacePathTokens(pathStr);
+                f.mkdirs();
                 if (!f.isDirectory()) {
-                    UIUtil.showError(this, "Invalid path", "The path that you entered does not exist or is not a directory.");
+                    SwingHelper.showError(this, "Invalid path", "The path that you entered does not exist or is not a directory.");
                     return false;
                 }
             }
@@ -360,48 +335,22 @@ public class ConfigurationDialog extends JDialog {
         
         if (configuration == null) { // New configuration
             String id = UUID.randomUUID().toString();
-            Configuration config = new Configuration(id, name, f, updateUrl);
+            Configuration config = Configuration.createCustom(
+                    id, name, pathStr, updateUrl);
             config.setSettings(settings);
             configsManager.register(config);
             this.configuration = config;
         } else {
             if (!builtIn) {
                 configuration.setName(name);
-                configuration.setCustomBasePath(f);
+                configuration.setCustomBasePath(pathStr);
                 configuration.setUpdateUrl(updateUrl);
             }
         }
         
-        optionsDialog.save(false);
+        options.save();
         
         return true;
-    }
-    
-    /**
-     * Open the path browser.
-     */
-    private void openPathBrowser() {
-        JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Select folder");
-        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-        chooser.setFileFilter(new FileFilter() {
-            @Override
-            public boolean accept(File pathname) {
-                if (pathname.isDirectory()) return true;
-                return false;
-            }
-
-            @Override
-            public String getDescription() {
-                return "Directories";
-            }
-        });
-        
-        int returnVal = chooser.showOpenDialog(this);
-        
-        if (returnVal == JFileChooser.APPROVE_OPTION) {
-            pathText.setText(chooser.getSelectedFile().getPath());
-        }
     }
 
 }

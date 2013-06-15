@@ -39,7 +39,8 @@ import javax.swing.SwingUtilities;
 
 import com.sk89q.mclauncher.addons.Addon;
 import com.sk89q.mclauncher.addons.AddonsProfile;
-import com.sk89q.mclauncher.util.Util;
+import com.sk89q.mclauncher.util.LauncherUtils;
+import com.sk89q.mclauncher.util.Task;
 
 public class AddonInstallerTask extends Task {
 
@@ -48,7 +49,6 @@ public class AddonInstallerTask extends Task {
     private AddonsProfile addonsProfile;
     private File file;
     private boolean removeOther = false;
-    private volatile boolean running = true;
 
     public AddonInstallerTask(AddonsProfile addonsProfile, File file) {
         this.addonsProfile = addonsProfile;
@@ -56,7 +56,7 @@ public class AddonInstallerTask extends Task {
     }
 
     @Override
-    protected void execute() throws ExecutionException {
+    protected void execute() throws ExecutionException, InterruptedException {
         fireTitleChange("Installing addon...");
         fireStatusChange("Installing " + file.getName() + "...");
         fireValueChange(-1);
@@ -66,6 +66,7 @@ public class AddonInstallerTask extends Task {
         String detectedModLoaderName = null;
         boolean multipleModLoaderMods = false;
         InputStream in = null;
+        JarInputStream jarFile = null;
         int entriesCount = 0;
         boolean hasRoot = false;
         boolean foundClasses = false;
@@ -80,14 +81,11 @@ public class AddonInstallerTask extends Task {
         fireStatusChange("Scanning addon files...");
         try {
             in = new FileInputStream(file);
-            JarInputStream jarFile = new JarInputStream(
-                    new BufferedInputStream(in));
+            jarFile = new JarInputStream(new BufferedInputStream(in));
             JarEntry entry;
 
             while ((entry = jarFile.getNextJarEntry()) != null) {
-                if (!running) {
-                    throw new CancelledExecutionException();
-                }
+                LauncherUtils.checkInterrupted();
 
                 if (entry.isDirectory())
                     continue;
@@ -160,10 +158,9 @@ public class AddonInstallerTask extends Task {
         } catch (IOException e) {
             throw new ExecutionException("Failed to scan the addon: "
                     + e.getMessage(), e);
-        } catch (CancelledExecutionException e) {
-            throw e;
         } finally {
-            Util.close(in);
+            LauncherUtils.close(jarFile);
+            LauncherUtils.close(in);
         }
         
         if (!foundClasses) {
@@ -233,6 +230,8 @@ public class AddonInstallerTask extends Task {
 
         File target = new File(addonsProfile.getDirectory(), file.getName());
         OutputStream out = null;
+        JarInputStream jarIn = null;
+        JarOutputStream jarOut = null;
         
         int nameIndex = 0;
         while (target.exists()) {
@@ -249,21 +248,17 @@ public class AddonInstallerTask extends Task {
         fireStatusChange("Installing files...");
         try {
             in = new FileInputStream(file);
-            JarInputStream jarFile = new JarInputStream(
-                    new BufferedInputStream(in));
+            jarIn = new JarInputStream(new BufferedInputStream(in));
             
             out = new FileOutputStream(target);
-            JarOutputStream outFile = new JarOutputStream(
-                    new BufferedOutputStream(out));
+            jarOut = new JarOutputStream(new BufferedOutputStream(out));
             
             byte[] buffer = new byte[8192];
             JarEntry entry;
             int i = 0;
 
-            while ((entry = jarFile.getNextJarEntry()) != null) {
-                if (!running) {
-                    throw new CancelledExecutionException();
-                }
+            while ((entry = jarIn.getNextJarEntry()) != null) {
+                LauncherUtils.checkInterrupted();
 
                 if (entry.isDirectory())
                     continue;
@@ -292,29 +287,29 @@ public class AddonInstallerTask extends Task {
                 }
                 
                 JarEntry outEntry = new JarEntry(path);
-                outFile.putNextEntry(outEntry);
+                jarOut.putNextEntry(outEntry);
 
                 int len = 0;
-                while ((len = jarFile.read(buffer, 0, buffer.length)) != -1) {
-                    outFile.write(buffer, 0, len);
+                while ((len = jarIn.read(buffer, 0, buffer.length)) != -1) {
+                    jarOut.write(buffer, 0, len);
                 }
                 
-                outFile.closeEntry();
+                jarOut.closeEntry();
                 
                 i++;
             }
-            
-            outFile.close();
         } catch (IOException e) {
             throw new ExecutionException("Failed to install the addon: "
                     + e.getMessage(), e);
-        } catch (CancelledExecutionException e) {
-            Util.close(out);
+        } catch (InterruptedException e) {
+            LauncherUtils.close(out);
             target.delete();
-            throw e;
+            throw new InterruptedException();
         } finally {
-            Util.close(in);
-            Util.close(out);
+            LauncherUtils.close(jarOut);
+            LauncherUtils.close(jarIn);
+            LauncherUtils.close(in);
+            LauncherUtils.close(out);
         }
 
         Addon addon = new Addon(id, name, null, target, null);
@@ -327,12 +322,6 @@ public class AddonInstallerTask extends Task {
                     "Failed to write the addon list to disk: " + e.getMessage(),
                     e);
         }
-    }
-
-    @Override
-    public Boolean cancel() {
-        running = false;
-        return null;
     }
 
 }

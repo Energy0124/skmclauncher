@@ -21,7 +21,6 @@ package com.sk89q.mclauncher;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
@@ -45,9 +44,12 @@ import javax.swing.SwingUtilities;
 import javax.swing.text.DefaultCaret;
 
 import com.sk89q.mclauncher.config.Configuration;
-import com.sk89q.mclauncher.config.ConfigurationsManager;
+import com.sk89q.mclauncher.config.ConfigurationList;
 import com.sk89q.mclauncher.config.LauncherOptions;
-import com.sk89q.mclauncher.util.UIUtil;
+import com.sk89q.mclauncher.util.ActionListeners;
+import com.sk89q.mclauncher.util.ButtonsPanel;
+import com.sk89q.mclauncher.util.LinkButton;
+import com.sk89q.mclauncher.util.SwingHelper;
 
 /**
  * The dialog for launcher options.
@@ -75,10 +77,10 @@ public class OptionsDialog extends JDialog {
         super(owner, "Launcher Options", true);
 
         this.options = options;
-        setResizable(false);
+        setResizable(true);
         buildUI();
         pack();
-        setSize(400, 500);
+        setSize(400, 540);
         setLocationRelativeTo(owner);
         
         tabs.setSelectedIndex(initialTab);
@@ -138,17 +140,22 @@ public class OptionsDialog extends JDialog {
         tabs.addTab("Environment",
                 wrap(new EnvironmentOptionsPanel(options.getSettings(), false)));
         tabs.addTab("Configurations", buildConfigurationsPanel());
-        tabs.addTab("About", buildAboutPanel());
         container.add(tabs, BorderLayout.CENTER);
 
-        JPanel buttonsPanel = new JPanel();
-        buttonsPanel.setLayout(new FlowLayout(FlowLayout.RIGHT, 5, 5));
-        JButton okButton = new JButton("OK");
-        JButton cancelButton = new JButton("Cancel");
-        UIUtil.equalWidth(okButton, cancelButton);
-        buttonsPanel.add(okButton);
-        buttonsPanel.add(cancelButton);
-        container.add(buttonsPanel, BorderLayout.SOUTH);
+        ButtonsPanel buttons = new ButtonsPanel(8, 0, 6, 0);
+        buttons.button("About...", new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                JOptionPane.showMessageDialog(
+                        self, buildAboutPanel(), "About the Launcher", JOptionPane.PLAIN_MESSAGE);
+            }
+        });
+        buttons.gap();
+        JButton okButton = buttons.addButton("OK");
+        buttons.spacer();
+        JButton cancelButton = buttons.addButton("Cancel");
+        SwingHelper.equalWidth(okButton, cancelButton);
+        container.add(buttons, BorderLayout.SOUTH);
 
         okButton.addActionListener(new ActionListener() {
             @Override
@@ -211,7 +218,7 @@ public class OptionsDialog extends JDialog {
         newBtn.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                new ConfigurationDialog(self, options.getConfigurations())
+                new ConfigurationDialog(self)
                         .setVisible(true);
             }
         });
@@ -224,20 +231,19 @@ public class OptionsDialog extends JDialog {
                 int max = configsTable.getSelectionModel()
                         .getMaxSelectionIndex();
                 if (min == -1 || max == -1) {
-                    UIUtil.showError(self, "Selection error",
+                    SwingHelper.showError(self, "Selection error",
                             "You have not selected any configurations.");
                     return;
                 }
                 if (min != max) {
-                    UIUtil.showError(self, "Selection error",
+                    SwingHelper.showError(self, "Selection error",
                             "Select one configuration at a time.");
                     return;
                 }
 
                 Configuration config = options.getConfigurations()
                         .getConfigurationAt(min);
-                new ConfigurationDialog(self, options.getConfigurations(),
-                        config).setVisible(true);
+                new ConfigurationDialog(self, config).setVisible(true);
             }
         });
 
@@ -249,7 +255,7 @@ public class OptionsDialog extends JDialog {
                 int max = configsTable.getSelectionModel()
                         .getMaxSelectionIndex();
                 if (min == -1 || max == -1) {
-                    UIUtil.showError(self, "Selection error",
+                    SwingHelper.showError(self, "Selection error",
                             "You have not selected any configurations.");
                     return;
                 }
@@ -261,12 +267,12 @@ public class OptionsDialog extends JDialog {
                                 "Remove", JOptionPane.YES_NO_OPTION) != 0)
                     return;
 
-                ConfigurationsManager configsManager = options
+                ConfigurationList configsManager = options
                         .getConfigurations();
                 for (int i = min; i <= max; i++) {
                     Configuration config = configsManager.getConfigurationAt(i);
                     if (config.isBuiltIn()) {
-                        UIUtil.showError(
+                        SwingHelper.showError(
                                 self,
                                 "Built-in configuration",
                                 "The configuration '"
@@ -281,7 +287,7 @@ public class OptionsDialog extends JDialog {
             }
         });
 
-        UIUtil.removeOpaqueness(buttonsPanel);
+        SwingHelper.removeOpaqueness(buttonsPanel);
 
         return panel;
     }
@@ -292,8 +298,6 @@ public class OptionsDialog extends JDialog {
      * @return panel
      */
     private JPanel buildAboutPanel() {
-        final OptionsDialog self = this;
-
         JPanel panel = new JPanel();
         panel.setOpaque(false);
         panel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
@@ -307,13 +311,20 @@ public class OptionsDialog extends JDialog {
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(label);
 
-        LinkButton btn = new LinkButton("http://www.sk89q.com");
+        LinkButton btn = new LinkButton("https://github.com/sk89q/skmclauncher");
         btn.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(btn);
 
         panel.add(Box.createVerticalStrut(20));
 
-        final JTextArea text = new JTextArea();
+        final JTextArea text = new JTextArea() {
+            private static final long serialVersionUID = -1743545646109139950L;
+
+            @Override
+            public Dimension getPreferredSize() {
+                return new Dimension(300, super.getPreferredSize().height);
+            }
+        };
         text.setEditable(false);
         text.setWrapStyleWord(true);
         text.setLineWrap(true);
@@ -329,12 +340,8 @@ public class OptionsDialog extends JDialog {
 
         panel.add(Box.createVerticalGlue());
 
-        btn.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                UIUtil.openURL("http://www.sk89q.com", self);
-            }
-        });
+        btn.addActionListener(ActionListeners.openURL(
+                this, "https://github.com/sk89q/skmclauncher"));
         
         // Fetch notices
         new Thread(new Runnable() {

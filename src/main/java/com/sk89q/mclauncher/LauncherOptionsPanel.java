@@ -21,7 +21,7 @@ package com.sk89q.mclauncher;
 import javax.swing.JCheckBox;
 
 import com.sk89q.mclauncher.config.Def;
-import com.sk89q.mclauncher.util.SettingsList;
+import com.sk89q.mclauncher.config.SettingsList;
 
 public class LauncherOptionsPanel extends OptionsPanel {
 
@@ -37,13 +37,14 @@ public class LauncherOptionsPanel extends OptionsPanel {
         addField(Def.LAUNCHER_NO_NEWS, new JCheckBox("Don't load the news"));
         addField(Def.LAUNCHER_HIDE_NEWS, new JCheckBox("Hide the news panel"));
         addField(Def.LAUNCHER_ALWAYS_MORE_OPTIONS, new JCheckBox("Start with all options shown"));
-        addField(Def.LAUNCHER_REOPEN, new JCheckBox("Show the launcher on Minecraft close"));
+        addField(Def.LAUNCHER_REOPEN, new JCheckBox("Re-launch launcher on Minecraft close"));
 
         createFieldGroup("Console");
         /*addField(Def.LOCAL_CONSOLE, new JCheckBox("Open console in launcher process"))
         .setToolTipText("Unchecked, the console opens in the same process as Minecraft, which can crash");*/
-        addField(Def.COLORED_CONSOLE, new JCheckBox("Use colors in the console"));
-        addField(Def.CONSOLE_KILLS_PROCESS, new JCheckBox("Kill Minecraft on console close"));
+        addField(Def.COLORED_CONSOLE, new JCheckBox("Use colors in the message log"));
+        addField(Def.CONSOLE_KILLS_PROCESS, new JCheckBox("Kill game on message window close"));
+        addField(Def.CONSOLE_CONFIRM_KILL, new JCheckBox("Confirm before force closing"));
 
         createFieldGroup("Addons");
         addField(Def.FAST_TEST, new JCheckBox("Addon test uses offline mode"));

@@ -1,3 +1,21 @@
+/*
+ * SK's Minecraft Launcher
+ * Copyright (C) 2010, 2011 Albert Pham <http://www.sk89q.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
+
 package com.sk89q.mclauncher;
 
 import java.awt.Color;
@@ -16,6 +34,7 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.ListCellRenderer;
+
 import com.sk89q.mclauncher.config.Configuration;
 
 public class ConfigurationCellRenderer implements ListCellRenderer {
@@ -54,7 +73,7 @@ public class ConfigurationCellRenderer implements ListCellRenderer {
         
         String infoText;
         if (configuration.isUsingDefaultPath()) {
-            infoText = "Default Minecraft installation";
+            infoText = "Normal installation";
         } else if (configuration.getUpdateUrl() != null) {
             infoText = "via " + configuration.getUpdateUrl().getHost();
         } else {

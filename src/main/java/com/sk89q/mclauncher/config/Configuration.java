@@ -19,24 +19,21 @@
 package com.sk89q.mclauncher.config;
 
 import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
-import java.util.HashMap;
 import java.util.logging.Logger;
-import java.util.Map;
+import java.util.regex.Pattern;
 
 import javax.imageio.ImageIO;
-
-import com.sk89q.mclauncher.Launcher;
-import com.sk89q.mclauncher.MinecraftJar;
-import com.sk89q.mclauncher.addons.AddonsProfile;
-import com.sk89q.mclauncher.util.SettingsList;
+import javax.xml.bind.annotation.XmlElement;
+import javax.xml.bind.annotation.XmlTransient;
 
 import org.spout.nbt.CompoundMap;
 import org.spout.nbt.CompoundTag;
@@ -44,215 +41,212 @@ import org.spout.nbt.ListTag;
 import org.spout.nbt.Tag;
 import org.spout.nbt.stream.NBTInputStream;
 
+import com.sk89q.mclauncher.Launcher;
+import com.sk89q.mclauncher.addons.AddonsProfile;
+import com.sk89q.mclauncher.session.MinecraftSession;
+import com.sk89q.mclauncher.update.ManifestUpdateCheck;
+import com.sk89q.mclauncher.update.UpdateCache;
+import com.sk89q.mclauncher.update.UpdateCheck;
+import com.sk89q.mclauncher.update.UpdateException;
+import com.sk89q.mclauncher.update.UpdateManifestFetcher;
+import com.sk89q.mclauncher.update.VanillaUpdateCheck;
+import com.sk89q.mclauncher.util.LauncherUtils;
+
 /**
  * Represents a configuration for the game.
- * 
- * @author sk89q
  */
-public class Configuration {
+public class Configuration implements Comparable<Configuration> {
     
-    private static final Logger logger = Logger.getLogger(Configuration.class.getCanonicalName());
+    private static final Logger logger = 
+            Logger.getLogger(Configuration.class.getCanonicalName());
+    public static final Pattern ID_PATTERN = Pattern.compile(
+            "^[A-Za-z0-9\\-_\\.]+{1,64}$");
     
     private String id;
-    private File customBasePath;
+    private String customBasePath;
     private String appDir;
     private String name;
+    private URL newsUrl;
     private URL updateUrl;
-    private String lastActiveJar;
+    private String lastJar;
     private SettingsList settings = new SettingsList();
-    private boolean builtIn = false;
-    private BufferedImage cachedIcon;
+    private Date lastLaunch;
+
+    private transient JarList jarList;
+    private transient boolean builtIn = false;
+    private transient boolean checkedIcon;
+    private transient BufferedImage cachedIcon;
     
-    /**
-     * Construct a configuration.
-     * 
-     * @param id id
-     * @param name name
-     * @param appDir data directory name
-     * @param updateUrl URL to update from, or null to use default
-     */
-    public Configuration(String id, String name, String appDir, URL updateUrl) {
-        if (!id.matches("^[A-Za-z0-9\\-]+{1,64}$")) {
-            throw new IllegalArgumentException("Invalid configuration name");
-        }
-        this.id = id;
-        setName(name);
-        setAppDir(appDir);
-        setUpdateUrl(updateUrl);
+    public Configuration() {
     }
     
-    /**
-     * Construct a configuration.
-     * 
-     * @param id id
-     * @param name name
-     * @param customBasePath base path to use
-     * @param updateUrl URL to update from, or null to use default
-     */
-    public Configuration(String id, String name, File customBasePath, URL updateUrl) {
-        if (!id.matches("^[A-Za-z0-9\\-]+{1,64}$")) {
-            throw new IllegalArgumentException("Invalid configuration name");
-        }
-        this.id = id;
-        setName(name);
-        setCustomBasePath(customBasePath);
-        setUpdateUrl(updateUrl);
+    public static Configuration createInstance(String id, String name, URL updateUrl) {
+        return createCustom(
+                id, name, "%INSTANCEDIR%" + File.separator + id, updateUrl);
     }
 
-    /**
-     * Get the ID.
-     * 
-     * @return ID
-     */
+    public static Configuration createCustom(
+            String id, String name, String dir, URL updateUrl) {
+        
+        if (!isValidId(id)) {
+            throw new IllegalArgumentException("Invalid configuration ID");
+        }
+        
+        Configuration configuration = new Configuration();
+        configuration.setId(id);
+        configuration.setName(name);
+        configuration.setCustomBasePath(dir);
+        configuration.setUpdateUrl(updateUrl);
+        return configuration;
+    }
+    
+    @Deprecated
+    public static Configuration createGlobal(
+            String id, String name, String dir, URL updateUrl) {
+        
+        if (!isValidId(id)) {
+            throw new IllegalArgumentException("Invalid configuration ID");
+        }
+        
+        Configuration configuration = new Configuration();
+        configuration.setId(id);
+        configuration.setName(name);
+        configuration.setAppDir(dir);
+        configuration.setUpdateUrl(updateUrl);
+        return configuration;
+    }
+
+    @XmlElement
     public String getId() {
         return id;
     }
 
-    /**
-     * Get the name.
-     * 
-     * @return name
-     */
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    @XmlElement
     public String getName() {
         return name;
     }
 
-    /**
-     * Set the name.
-     * 
-     * @param name name
-     */
     public void setName(String name) {
-        if (!name.matches("^.{1,32}$")) {
-            throw new IllegalArgumentException("Invalid name");
-        }
         this.name = name;
     }
-    
-    /**
-     * Returns whether the default base path is used.
-     * 
-     * @return true if the default path is used
-     */
-    public boolean isUsingDefaultPath() {
-        return customBasePath == null && appDir == null;
-    }
 
-    /**
-     * Get the custom base path. A custom base path, if set, is the base
-     * directory that is used, otherwise the application directory field
-     * is used instead.
-     * 
-     * @return path or null
-     */
-    public File getCustomBasePath() {
-        return customBasePath;
-    }
-
-    /**
-     * Set the custom base path. A custom base path, if set, is the base
-     * directory that is used, otherwise the application directory field
-     * is used instead.
-     * 
-     * @param customBasePath path or null
-     */
-    public void setCustomBasePath(File customBasePath) {
-        this.customBasePath = customBasePath;
-    }
-
-    /**
-     * Get the data directory name.
-     * 
-     * @see #setCustomBasePath(File) can override
-     * @return name or null for default
-     */
+    @XmlElement
     public String getAppDir() {
         return appDir;
     }
 
-    /**
-     * Set the data directory name.
-     * 
-     * @see #setCustomBasePath(File) can override
-     * @param appDir name
-     */
     public void setAppDir(String appDir) {
+        if (appDir != null && appDir.isEmpty()) {
+            this.appDir = null;
+            return;
+        }
         if (appDir != null && !appDir.matches("^[A-Za-z0-9\\-_]+{1,32}$")) {
             throw new IllegalArgumentException("Invalid data directory name");
         }
         this.appDir = appDir;
     }
 
-    /**
-     * Get the update URL.
-     * 
-     * @return url or null for default
-     */
+    @XmlElement(name = "basePath")
+    public String getCustomBasePath() {
+        return customBasePath;
+    }
+
+    public void setCustomBasePath(String customBasePath) {
+        if (customBasePath != null && customBasePath.isEmpty()) {
+            this.customBasePath = null;
+            return;
+        }
+        this.customBasePath = customBasePath;
+    }
+
+    @XmlElement(name = "newsURL")
+    public URL getNewsUrl() {
+        return newsUrl;
+    }
+
+    public void setNewsUrl(URL newsUrl) {
+        this.newsUrl = newsUrl;
+    }
+
+    @XmlElement(name = "updateURL")
     public URL getUpdateUrl() {
         return updateUrl;
     }
 
-    /**
-     * Set the update URL.
-     * 
-     * @param updateUrl url or null for default
-     */
     public void setUpdateUrl(URL updateUrl) {
         this.updateUrl = updateUrl;
     }
     
-    /**
-     * Get whether this configuration is built-in.
-     * 
-     * @return built-in status
-     */
-    public boolean isBuiltIn() {
-        return builtIn;
+    @XmlElement(name = "lastJar")
+    public String getLastJarName() {
+        return lastJar;
     }
 
-    /**
-     * Set whether this configuration is built-in.
-     * 
-     * @param builtIn built-in status
-     */
-    public void setBuiltIn(boolean builtIn) {
-        this.builtIn = builtIn;
+    public void setLastJarName(String lastActiveJar) {
+        this.lastJar = lastActiveJar;
     }
 
-    /**
-     * Get the last active JAR.
-     * 
-     * @return JAR name or null
-     */
-    public String getLastActiveJar() {
-        return lastActiveJar;
+    public void setLastJar(MinecraftJar jar) {
+        setLastJarName(jar instanceof DefaultJar ? null : jar.getName());
     }
 
-    /**
-     * Set the last active jar.
-     * 
-     * @param lastActiveJar JAR name or null
-     */
-    public void setLastActiveJar(String lastActiveJar) {
-        this.lastActiveJar = lastActiveJar;
-    }
-
-    /**
-     * Get the settings.
-     * 
-     * @return settings
-     */
+    @XmlElement
     public SettingsList getSettings() {
         return settings;
     }
 
-    /**
-     * Set settings.
-     * 
-     * @param settings settings
-     */
     public void setSettings(SettingsList settings) {
         this.settings = settings;
+    }
+
+    @XmlElement(name = "lastLaunch")
+    public Date getLastLaunch() {
+        return lastLaunch;
+    }
+
+    public void setLastLaunch(Date lastLaunch) {
+        this.lastLaunch = lastLaunch;
+    }
+
+    public void updateLastLaunch() {
+        setLastLaunch(new Date());
+    }
+
+    @XmlTransient
+    public boolean isBuiltIn() {
+        return builtIn;
+    }
+
+    public void setBuiltIn(boolean builtIn) {
+        this.builtIn = builtIn;
+    }
+
+    @XmlTransient
+    public boolean isUsingDefaultPath() {
+        return customBasePath == null && appDir == null;
+    }
+    
+    /**
+     * Get an {@link UpdateCheck} that can be used to check if there's an update and
+     * to perform an update.
+     * 
+     * @param session the user session
+     * @param cache the update cache
+     * @return an update check
+     * @throws UpdateException if the check can't be created for whatever reason
+     */
+    public UpdateCheck createUpdateCheck(
+            MinecraftSession session, final UpdateCache cache) throws UpdateException {
+        if (updateUrl == null) {
+            return VanillaUpdateCheck.fromSession(this, session, cache);
+        } else {
+            UpdateManifestFetcher fetcher = new UpdateManifestFetcher(updateUrl);
+            return new ManifestUpdateCheck(this, cache, fetcher);
+        }
     }
 
     /**
@@ -263,7 +257,7 @@ public class Configuration {
     public File getBaseDir() {
         File path;
         if (getCustomBasePath() != null) {
-            return getCustomBasePath();
+            path = Launcher.replacePathTokens(getCustomBasePath());
         } else if (getAppDir() == null) {
             path = Launcher.getAppDataDir();
         } else {
@@ -275,6 +269,21 @@ public class Configuration {
     }
 
     /**
+     * Shortcut method to get the directory show in an options dialog.
+     * 
+     * @return directory
+     */
+    public String getDirForOptions() {
+        if (getCustomBasePath() != null) {
+            return getCustomBasePath();
+        } else if (getAppDir() == null) {
+            return Launcher.getAppDataDir().getAbsolutePath();
+        } else {
+            return Launcher.getAppDataDir(getAppDir()).getAbsolutePath();
+        }
+    }
+
+    /**
      * Shortcut method to get the directory that Minecraft will actually use.
      * 
      * @return directory
@@ -282,7 +291,7 @@ public class Configuration {
     public File getMinecraftDir() {
         File path;
         if (getCustomBasePath() != null) {
-            return Launcher.toMinecraftDir(getCustomBasePath());
+            path = Launcher.toMinecraftDir(Launcher.replacePathTokens(getCustomBasePath()));
         } else if (getAppDir() == null) {
             path = Launcher.getOfficialDataDir();
         } else {
@@ -294,29 +303,26 @@ public class Configuration {
     }
 
     /**
+     * Get the texture packs directory.
+     * 
+     * @return the directory
+     */
+    public File getTexturePacksDir() {
+        return new File(getMinecraftDir(), "texturepacks");
+    }
+
+    /**
      * Get a list of JARs.
      * 
      * @return list of jars
      */
-    public List<MinecraftJar> getJars() {
-        File base = new File(getMinecraftDir(), "bin");
-        List<MinecraftJar> jars = new ArrayList<MinecraftJar>();
-        jars.add(new MinecraftJar(new File(base, "minecraft.jar")));
-        File[] files = base.listFiles();
-        if (files == null) {
-            return jars;
+    @XmlTransient
+    public JarList getJars() {
+        if (jarList == null) {
+            jarList = new JarList(new File(getMinecraftDir(), "bin"));
+            jarList.setSelectedItem(getLastJarName());
         }
-        for (File f : files) {
-            String name = f.getName();
-            
-            if (name.matches("^[^\\/:;]+\\.jar$") && !name.equalsIgnoreCase("jinput.jar")
-                    && !name.equalsIgnoreCase("lwjgl.jar")
-                    && !name.equalsIgnoreCase("lwjgl_util.jar")
-                    && !name.equalsIgnoreCase("minecraft.jar")) {
-                jars.add(new MinecraftJar(f));
-            }
-        }
-        return jars;
+        return jarList;
     }
 
     /**
@@ -335,7 +341,43 @@ public class Configuration {
      * @return icon or null
      */
     public BufferedImage getIcon() {
+        if (cachedIcon == null && !checkedIcon) {
+            checkedIcon = true;
+            loadIcon();
+        }
         return cachedIcon;
+    }
+    
+    /**
+     * Try to load an icon from the configuration directory.
+     * 
+     * @param path path
+     * @return this object
+     */
+    private Configuration loadIcon() {
+        File iconPath = new File(getMinecraftDir(), "skmclauncher_icon.png");
+        if (!iconPath.exists()) {
+            return null;
+        }
+        
+        FileInputStream in = null;
+        try {
+            in = new FileInputStream(iconPath);
+            BufferedInputStream bis = new BufferedInputStream(in);
+            BufferedImage icon = ImageIO.read(bis);
+            
+            // Make sure that the dimensions are acceptable
+            // @TODO: Resize / support higher DPI images
+            if (icon.getWidth() == 32 && icon.getHeight() == 32) {
+                cachedIcon = icon;
+            }
+        } catch (IOException e) {
+            logger.warning("Failed to load icon at " + iconPath);
+        } finally {
+            LauncherUtils.close(in);
+        }
+        
+        return this;
     }
     
     /**
@@ -358,25 +400,64 @@ public class Configuration {
         return this;
     }
 
-    public Map<String, String> getMPServers() throws FileNotFoundException, IOException {
+    /**
+     * Get a list of servers from the servers.dat file.
+     * 
+     * @return a list of server entries
+     */
+    public List<ServerEntry> detectUserServers() {
         File file = new File(getMinecraftDir(), "servers.dat");
-        Map<String, String> retn = new HashMap<String, String>();
+        List<ServerEntry> retn = new ArrayList<ServerEntry>();
+        
+        try {
 
-        if (file.exists()) {
-            NBTInputStream nbt = new NBTInputStream(new FileInputStream(file), false);
-            Tag tag = nbt.readTag();
-            ListTag<?> servers = (ListTag<?>) ((CompoundMap) tag.getValue()).get("servers");
+            if (file.exists()) {
+                NBTInputStream nbt = null;
+                try {
+                    nbt = new NBTInputStream(new FileInputStream(file), false);
+                    Tag tag = nbt.readTag();
+                    ListTag<?> servers = (ListTag<?>) 
+                            ((CompoundMap) tag.getValue()).get("servers");
 
 
-            for (Object val : servers.getValue()) {
-                CompoundMap server = ((CompoundTag) val).getValue();
-                String name = (String) server.get("name").getValue();
-                String ip = (String) server.get("ip").getValue();
+                    for (Object val : servers.getValue()) {
+                        CompoundMap server = ((CompoundTag) val).getValue();
+                        String name = (String) server.get("name").getValue();
+                        String ip = (String) server.get("ip").getValue();
 
-                retn.put(name, ip);
+                        retn.add(new ServerEntry(name, ip));
+                    }
+                } finally {
+                    LauncherUtils.close(nbt);
+                }
             }
+        } catch (Throwable t) {
         }
+        
         return retn;
+    }
+    
+    /**
+     * Check if the given ID is a valid ID for a configuration.
+     * 
+     * @param id the ID
+     * @return true if valid
+     */
+    public static boolean isValidId(String id) {
+        return ID_PATTERN.matcher(id).matches();
+    }
+
+    @Override
+    public int compareTo(Configuration o) {
+        if (getLastLaunch() == null && o.getLastLaunch() == null) {
+            return 0;
+        } else if (getLastLaunch() == null) {
+            return 1;
+        } else if (o.getLastLaunch() == null) {
+            return -1;
+        } else {
+            return -getLastLaunch().compareTo(o.getLastLaunch());
+        }
     }
     
 }

@@ -55,7 +55,13 @@ import javax.swing.filechooser.FileFilter;
 import com.sk89q.mclauncher.addons.Addon;
 import com.sk89q.mclauncher.addons.AddonsProfile;
 import com.sk89q.mclauncher.config.Configuration;
-import com.sk89q.mclauncher.util.UIUtil;
+import com.sk89q.mclauncher.config.Def;
+import com.sk89q.mclauncher.config.MinecraftJar;
+import com.sk89q.mclauncher.config.SettingsList;
+import com.sk89q.mclauncher.util.ActionListeners;
+import com.sk89q.mclauncher.util.SwingHelper;
+import com.sk89q.mclauncher.util.Task;
+import com.sk89q.mclauncher.util.TaskWorker;
 
 /**
  * The dialog for managing addons.
@@ -98,9 +104,6 @@ public class AddonManagerDialog extends JDialog {
         pack();
         setSize(550, 350);
         setLocationRelativeTo(owner);
-
-        // Populate the jar list
-        populateJarList();
 
         // Select a JAR
         for (int i = 0; i < jarCombo.getItemCount(); i++) {
@@ -202,7 +205,7 @@ public class AddonManagerDialog extends JDialog {
      */
     private boolean checkAddonsProfileLoaded() {
         if (addonsProfile == null) {
-            UIUtil.showError(this, "Not loaded",
+            SwingHelper.showError(this, "Not loaded",
                     "The addon list could not be loaded, and so you cannot do this.");
             return false;
         }
@@ -216,11 +219,15 @@ public class AddonManagerDialog extends JDialog {
         if (worker.isAlive()) return;
         if (!checkAddonsProfileLoaded()) return;
         
+        SettingsList settings = Launcher.getInstance().getOptions().getSettings();
+        
         // Ask for a file.
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("Select addon to install");
-        File lastFolder = Launcher.getInstance().getOptions().getLastInstallDir(); 
-        if (lastFolder != null) chooser.setCurrentDirectory(lastFolder);
+        String lastFolder = settings.get(Def.LAST_INSTALL_DIR); 
+        if (lastFolder != null) 
+            chooser.setCurrentDirectory(new File(lastFolder));
+        
         chooser.setFileFilter(new FileFilter() {
             @Override
             public boolean accept(File pathname) {
@@ -242,8 +249,8 @@ public class AddonManagerDialog extends JDialog {
         });
         
         int returnVal = chooser.showOpenDialog(this);
-        Launcher.getInstance().getOptions().setLastInstallDir(
-                chooser.getCurrentDirectory());
+        settings.set(Def.LAST_INSTALL_DIR, 
+                chooser.getCurrentDirectory().getAbsolutePath());
         
         // Proceed with installation
         if (returnVal == JFileChooser.APPROVE_OPTION) {
@@ -275,30 +282,19 @@ public class AddonManagerDialog extends JDialog {
      *            component to open from
      */
     private void popupToolsMenu(Component component) {
-        final AddonManagerDialog self = this;
-
         JPopupMenu popup = new JPopupMenu();
         JMenuItem menuItem;
 
         menuItem = new JMenuItem("Open Minecraft data folder...");
-        menuItem.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                UIUtil.browse(configuration.getMinecraftDir(), self);
-            }
-        });
+        menuItem.addActionListener(
+                ActionListeners.browseDir(
+                        this, configuration.getMinecraftDir(), false));
         popup.add(menuItem);
 
         menuItem = new JMenuItem("Open texture packs folder...");
-        menuItem.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                File f = new File(configuration.getMinecraftDir(),
-                        "texturepacks");
-                f.mkdirs();
-                UIUtil.browse(f, self);
-            }
-        });
+        menuItem.addActionListener(
+                ActionListeners.browseDir(
+                        this, configuration.getTexturePacksDir(), true));
         popup.add(menuItem);
 
         popup.show(component, 0, component.getHeight());
@@ -342,6 +338,7 @@ public class AddonManagerDialog extends JDialog {
         panel.add(Box.createHorizontalStrut(5));
 
         jarCombo = new JComboBox();
+        jarCombo.setModel(configuration.getJars());
         panel.add(jarCombo);
 
         panel.add(Box.createHorizontalGlue());
@@ -502,8 +499,9 @@ public class AddonManagerDialog extends JDialog {
                 saveAddonsProfile();
                 Launcher.getInstance().getOptions().save();
                 self.dispose();
-                launcherFrame.setShowConsole(true);
-                launcherFrame.launch(null, true);
+                
+                launcherFrame.getLaunchSettings().setTestMode();
+                launcherFrame.launch();
             }
         });
 
@@ -523,18 +521,9 @@ public class AddonManagerDialog extends JDialog {
             }
         });
 
-        UIUtil.equalWidth(launchBtn, testBtn, okBtn);
+        SwingHelper.equalWidth(launchBtn, testBtn, okBtn);
 
         return panel;
-    }
-
-    /**
-     * Popular the active JAR combo box with entries.
-     */
-    private void populateJarList() {
-        for (MinecraftJar jar : configuration.getJars()) {
-            jarCombo.addItem(jar);
-        }
     }
 
 }

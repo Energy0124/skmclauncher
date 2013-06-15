@@ -7,8 +7,8 @@ import java.util.EventObject;
 
 import javax.swing.event.EventListenerList;
 
-import com.sk89q.mclauncher.DownloadListener;
-import com.sk89q.mclauncher.DownloadProgressEvent;
+import com.sk89q.mclauncher.event.DownloadListener;
+import com.sk89q.mclauncher.event.DownloadProgressEvent;
 
 public abstract class AbstractDownloader implements Downloader {
 
@@ -161,7 +161,7 @@ public abstract class AbstractDownloader implements Downloader {
             while (running) {
                 fireDownloadProgress(getDownloadedLength());
                 try {
-                    Thread.sleep(1000);
+                    Thread.sleep(100);
                 } catch (InterruptedException e) {
                     break;
                 }

@@ -19,9 +19,7 @@
 package com.sk89q.mclauncher;
 
 import java.io.BufferedReader;
-import java.io.DataInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -36,7 +34,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.crypto.Cipher;
-import javax.crypto.CipherInputStream;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
@@ -48,11 +45,12 @@ import com.sk89q.mclauncher.config.Constants;
 import com.sk89q.mclauncher.config.Def;
 import com.sk89q.mclauncher.config.LauncherOptions;
 import com.sk89q.mclauncher.security.X509KeyRing;
-import com.sk89q.mclauncher.update.UpdateCache;
 import com.sk89q.mclauncher.util.BasicArgsParser;
 import com.sk89q.mclauncher.util.BasicArgsParser.ArgsContext;
 import com.sk89q.mclauncher.util.ConsoleFrame;
-import com.sk89q.mclauncher.util.Util;
+import com.sk89q.mclauncher.util.LauncherUtils;
+import com.sk89q.mclauncher.util.Platform;
+import com.sk89q.mclauncher.util.SimpleLogFormatter;
 
 /**
  * Launcher entry point.
@@ -110,6 +108,8 @@ public class Launcher {
         
         System.setProperty("http.agent", "SKMCLauncher/" + VERSION + " (+http://www.sk89q.com)");
         
+        SimpleLogFormatter.setAsFormatter();
+        
         // Read options
         File base = getLauncherDataDir();
         base.mkdirs();
@@ -119,10 +119,7 @@ public class Launcher {
         
         // If the options file does not exist, try to import old data
         if (!optionsFile.exists()) {
-            try {
-                importLauncherLogin();
-            } catch (IOException e) {
-            }
+            options.getIdentities().importLogins();
         }
         
         keyRing = new X509KeyRing();
@@ -185,7 +182,9 @@ public class Launcher {
      * @return directory
      */
     public static File getOfficialDataDir() {
-        return getAppDataDir("minecraft");
+        File dir = getAppDataDir("minecraft");
+        // Breakpoint here to test a different directory
+        return dir;
     }
     
     /**
@@ -310,6 +309,7 @@ public class Launcher {
             default:
                 workingDir = new File(homeDir, "SKMCLauncher");
         }
+
         if (!new File(workingDir, "config.xml").exists()) {
             workingDir = getOfficialDataDir();
         }
@@ -321,62 +321,23 @@ public class Launcher {
     }
     
     /**
-     * Import old launcher settings.
+     * Get the built-in directory for instances.
      * 
-     * @throws IOException on I/O error
+     * @return the directory for instances
      */
-    private void importLauncherLogin() throws IOException {
-        File file = new File(getOfficialDataDir(), "lastlogin");
-        if (!file.exists()) return;
-        
-        DataInputStream in = null;
-        try {
-            Cipher cipher = getCipher(Cipher.DECRYPT_MODE, "passwordfile");
-            in = new DataInputStream(new CipherInputStream(
-                    new FileInputStream(file), cipher));
-            String username = in.readUTF();
-            String password = in.readUTF();
-            if (username.trim().length() == 0) {
-                return;
-            }
-            if (password.trim().length() == 0) {
-                password = null;
-            }
-            options.saveIdentity(username, password);
-            options.setLastUsername(username);
-        } catch (InvalidKeyException e) {
-            throw new IOException(e);
-        } catch (InvalidKeySpecException e) {
-            throw new IOException(e);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IOException(e);
-        } catch (NoSuchPaddingException e) {
-            throw new IOException(e);
-        } catch (InvalidAlgorithmParameterException e) {
-            throw new IOException(e);
-        } finally {
-            Util.close(in);
-        }
+    public static File getInstanceDataDir() {
+        return new File(getLauncherDataDir(), "instances");
     }
     
     /**
-     * Import old launcher game version information.
+     * Replace path tokens (like %INSTANCES_DIR%).
      * 
-     * @param cache update cache to update
-     * @throws IOException on I/O error
+     * @param path the path to replace
+     * @return the result path
      */
-    public void importLauncherUpdateVersion(UpdateCache cache) throws IOException {
-        File file = new File(getOfficialDataDir(), "bin/version");
-        if (!file.exists()) return;
-        
-        DataInputStream in = null;
-        try {
-            in = new DataInputStream(new FileInputStream(file));
-            String version = in.readUTF();
-            cache.setLastUpdateId(version);
-        } finally {
-            Util.close(in);
-        }
+    public static File replacePathTokens(String path) {
+        return new File(path.replace("%INSTANCEDIR%", 
+                getInstanceDataDir().getAbsolutePath() + File.separator));
     }
     
     /**
@@ -386,8 +347,6 @@ public class Launcher {
      * will appear in the console.
      */
     public static void showConsole() {
-        if (consoleFrame != null) return;
-
         final boolean colorEnabled = Launcher.getInstance().getOptions()
                 .getSettings().getBool(Def.COLORED_CONSOLE, true);
         
@@ -396,12 +355,15 @@ public class Launcher {
                 @Override
                 public void run() {
                     ConsoleFrame frame = consoleFrame;
-                    if (frame == null || frame.isActive()) {
+                    if (frame == null || !frame.isRunning()) {
                         frame = new ConsoleFrame(10000, colorEnabled);
                         consoleFrame = frame;
                         frame.setTitle("Launcher Debugging Console");
-                        frame.registerLoggerHandler();
+                        frame.getMessageLog().registerLoggerHandler();
                         frame.setVisible(true);
+                    } else {
+                        frame.setVisible(true);
+                        frame.requestFocus();
                     }
                 }
             });
@@ -446,7 +408,7 @@ public class Launcher {
             InputStream f = Launcher.class.getResourceAsStream("/resources/NOTICE.txt");
             if (f == null) {
                 logger.log(Level.WARNING, "Failed to read NOTICE.txt");
-                Util.close(in);
+                LauncherUtils.close(in);
                 return noticesText = "<Failed to read NOTICE.txt>";
             }
             in = new BufferedReader(new InputStreamReader(f));
@@ -460,7 +422,7 @@ public class Launcher {
             return noticesText = contents.toString();
         } catch (IOException e) {
             logger.log(Level.WARNING, "Failed to read NOTICE.txt", e);
-            Util.close(in);
+            LauncherUtils.close(in);
             return noticesText = "<Failed to read NOTICE.txt>";
         }
     }
@@ -491,11 +453,11 @@ public class Launcher {
                 frame.setVisible(true);
                 
                 if (username != null) {
-                    frame.setLogin(username, password);
+                    frame.getLaunchSettings().setLogin(username, password);
                 }
                 
                 if (autoConnect != null && autoConnect.matches("^[A-Za-z0-9\\.]{1,128}(?::[0-9]+)?$")) {
-                    frame.setAutoConnect(autoConnect);
+                    frame.getLaunchSettings().setAutoConnect(autoConnect);
                 }
                 
                 if (autoLaunch) {
@@ -508,7 +470,7 @@ public class Launcher {
     /**
      * Start the launcher frame.
      */
-    static void startLauncherFrame() {
+    public static void startLauncherFrame() {
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {

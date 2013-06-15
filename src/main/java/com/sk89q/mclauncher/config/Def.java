@@ -28,12 +28,12 @@ public class Def {
     public static final String FAST_TEST = "addons.test.fast";
     public static final String LOCAL_CONSOLE = "console.local";
     public static final String COLORED_CONSOLE = "console.colored";
-    public static final String CONSOLE_KILLS_PROCESS = "console.kill-process";
+    public static final String CONSOLE_KILLS_PROCESS = "console.kill-process-if-closed";
+    public static final String CONSOLE_CONFIRM_KILL = "console.confirm-kill";
     public static final String LAUNCHER_NO_NEWS = "launcher.newsless";
-    public static final String LAUNCHER_ALLOW_OFFLINE_NAME = "launcher.allowofflinename";
     public static final String LAUNCHER_HIDE_NEWS = "launcher.hidenews";
     public static final String LAUNCHER_ALWAYS_MORE_OPTIONS = "launcher.always-more-options";
-    public static final String LAUNCHER_REOPEN = "launcher.reopen";
+    public static final String LAUNCHER_REOPEN = "launcher.reopen-after-close";
     public static final String WINDOW_WIDTH = "window.width";
     public static final String WINDOW_HEIGHT = "window.height";
     public static final String WINDOW_FULLSCREEN = "window.fullscreen";
@@ -45,6 +45,7 @@ public class Def {
     public static final String JAVA_WRAPPER_PROGRAM = "java.wrapper-program";
     public static final String JAVA_CONSOLE = "java.console";
     public static final String LWJGL_DEBUG = "lwjgl.debug";
+    public static final String LAST_INSTALL_DIR = "dir.last-install";
     
     private Def() {
     }

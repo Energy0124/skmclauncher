@@ -18,13 +18,17 @@
 
 package com.sk89q.mclauncher.update;
 
+import static com.sk89q.mclauncher.util.XmlUtils.*;
+
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.TransformerConfigurationException;
@@ -37,20 +41,19 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.xml.sax.SAXException;
 
+import com.sk89q.mclauncher.model.Component;
 import com.sk89q.mclauncher.util.SimpleNode;
-
-import static com.sk89q.mclauncher.util.XMLUtil.*;
 
 /**
  * Stores update versioning information.
- * 
- * @author sk89q
  */
 public class UpdateCache {
     
     private File file;
     private String lastUpdateId;
-    private Map<String, String> hashCache;
+    private Map<String, String> hashCache = new HashMap<String, String>();
+    private Map<String, Boolean> componentSelection = new HashMap<String, Boolean>();
+    private Set<String> touched = new HashSet<String>();
     
     public UpdateCache(File file) {
         this.file = file;
@@ -63,6 +66,7 @@ public class UpdateCache {
     
     public void read() throws IOException {
         hashCache = new HashMap<String, String>();
+        touched = new HashSet<String>();
         InputStream in;
         
         try {
@@ -76,6 +80,15 @@ public class UpdateCache {
                 String path = getValue(node);
                 String hash = getAttrOrNull(node, "hash");
                 hashCache.put(path, hash);
+            }
+            
+            // Read all the <component> elements
+            for (Node node : getNodes(doc, xpath.compile("/cache/component"))) {
+                String id = getAttrOrNull(node, "id");
+                String selected = getAttrOrNull(node, "selected");
+                if (id != null && selected != null) {
+                    componentSelection.put(id, selected.equalsIgnoreCase("true"));
+                }
             }
             
             lastUpdateId = getStringOrNull(doc, xpath.compile("/cache/current/text()"));
@@ -98,9 +111,20 @@ public class UpdateCache {
             }
             
             for (Map.Entry<String, String> entry : hashCache.entrySet()) {
+                if (!touched.contains(entry.getKey())) {
+                    continue; // Delete old entries
+                }
+                
                 root.addNode("entry")
                         .addValue(entry.getKey())
                         .setAttr("hash", entry.getValue());
+            }
+            
+            for (Map.Entry<String, Boolean> entry : componentSelection.entrySet()) {
+                root.addNode("component")
+                        .addValue(entry.getKey())
+                        .setAttr("id", entry.getKey())
+                        .setAttr("selected", entry.getValue() ? "true" : "false");
             }
 
             writeXml(doc, file);
@@ -121,12 +145,32 @@ public class UpdateCache {
         this.lastUpdateId = lastUpdateId;
     }
 
-    public String getCachedHash(String path) {
+    public String getFileVersion(String path) {
         return hashCache.get(path);
     }
     
-    public void putCachedHash(String path, String hash) {
-        hashCache.put(path, hash);
+    public void setFileVersion(String path, String hash) {
+        if (hash == null) {
+            hashCache.remove(path);
+        } else {
+            touch(path);
+            hashCache.put(path, hash);
+        }
+    }
+
+    public void touch(String cacheId) {
+        touched.add(cacheId);
+    }
+    
+    public void storeSelection(Component component) {
+        componentSelection.put(component.getId(), component.isSelected());
+    }
+    
+    public void recallSelection(Component component) {
+        Boolean value = componentSelection.get(component.getId());
+        if (value != null) {
+            component.setSelected(value);
+        }
     }
     
 }
