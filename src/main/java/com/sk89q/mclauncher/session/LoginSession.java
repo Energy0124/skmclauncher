@@ -136,7 +136,7 @@ public class LoginSession implements MinecraftSession {
                 if (username==null) username="player";
                 sessionId = "0";
                 isValid = true;
-                return true;
+                return;
                 /*
                 if (result.trim().equals("Bad login")) {
                     throw new InvalidCredentialsException();
